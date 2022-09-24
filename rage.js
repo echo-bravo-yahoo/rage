@@ -1,5 +1,5 @@
 import cheerio from 'cheerio'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, readFile } from 'node:fs/promises'
 
 function tableToData($, table) {
   const row = $(table).find('tr').slice(1, 2)
@@ -68,10 +68,115 @@ async function loadCharacterData(characterName) {
   const res = await ((await fetch(`https://www.dustloop.com/w/GGST/${characterName}/Data`)).text())
   const $ = cheerio.load(res)
   const moves = []
-  $('#mw-content-text table.wikitable tbody').each((i, table) => {
+  $('#mw-content-text table.wikitable tbody').slice(1).each((i, table) => {
     moves.push(tableToData($, table))
   })
   return moves
 }
 
-loadData()
+const attackLevelData = {
+  0: {
+    hitstop: 11,
+    standingHitstun: 12,
+    crouchingHitstun: 13,
+    blockstun: 9,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  1: {
+    hitstop: 12,
+    standingHitstun: 14,
+    crouchingHitstun: 15,
+    blockstun: 11,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  2: {
+    hitstop: 13,
+    standingHitstun: 16,
+    crouchingHitstun: 17,
+    blockstun: 13,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  3: {
+    hitstop: 14,
+    standingHitstun: 19,
+    crouchingHitstun: 20,
+    blockstun: 16,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  4: {
+    hitstop: 15,
+    standingHitstun: 21,
+    crouchingHitstun: 22,
+    blockstun: 18,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  }
+}
+
+function getBlockstun(attackLevel) {
+  return attackLevelData[attackLevel].blockstun
+}
+
+function getHitstun(attackLevel, position) {
+  if (position === 'crouch') {
+    return attackLevelData[attackLevel].crouchingHitstun
+  } else if (position === 'stand') {
+    return attackLevelData[attackLevel].standingHitstun
+  }
+}
+
+async function parseInput(characterName, input) {
+  const moves = JSON.parse(await readFile(`./frame-data/${characterName}.json`))
+  const events = input.split('>').map((event) => event.trim())
+  let currentTime = 0
+  // const defenderTimeline = []
+  // const attackerTimeline = []
+  for(let i = 0; i < events.length; i++) {
+    console.log(`Looking for ${events[i]}.`)
+    const move = moves.find((move) => {
+      return events[i] === move.input || events[i] === move.name
+    })
+
+    // TODO: actually check gatlings
+    const link = i === 0 ? false : true
+
+    // TODO: actually check if hit
+    const hit = true
+
+    const position = 'stand'
+
+    if (!move) throw new Error(`Could not find move $[events[i]}.`)
+
+    console.log(move.input, 'hit.')
+    attackerTimeline.push({
+      timestamp: currentTime,
+      startup: move.startup,
+      active: move.active,
+      recovery: move.recovery,
+      move: move.input
+    })
+    const defenderOutcome = {
+      timestamp: currentTime,
+      move: move.input
+    }
+    if (hit) {
+      defenderOutcome.hitstun = getHitstun(move.attackLevel, stand)
+    } else {
+      defenderOutcome.blockstun = getBlockstun(move.attackLevel)
+    }
+    defenderTimeline.push(defenderOutcome)
+
+    if (link) {
+      attackerTimeline[i - 1].recovery = 0
+    } else {
+    }
+  }
+}
+
+parseInput('Millia_Rage', '2K > 2D > 236H')
+
+// loadData()
