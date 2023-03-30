@@ -1,0 +1,19 @@
+### Features I need to scope
+- On-hit timelines
+  - c.S > 2S > 5H hit
+- Human timelines
+- Counterhit timelines
+  - (block) c.S > 2S > CH 5H
+- Manual delay cancels
+  - c.S > dl 8 > 2S > 5H
+  - c.S > delay 8 > 2S > 5H
+- Mirazh cancels
+- IADs
+  - c.S > IAD j.H
+- Jump cancels
+  - c.S > 9 > j.H
+- TK specials
+  - c.S > TK BM
+- Kara cancels
+- Meaty timings
+  - meaty c.S > 5D
