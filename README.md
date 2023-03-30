@@ -5,8 +5,6 @@
 - Manual delay cancels
   - c.S > dl 8 > 2S > 5H
   - c.S > delay 8 > 2S > 5H
-- whiff advantage
-  - c.S > c.S > 2S hit > 5H whiff
 - Mirazh cancels
 - IADs
   - c.S > IAD j.H

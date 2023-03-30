@@ -66,7 +66,7 @@ const buttons = [
 ]
 
 // const string = 'c.S > c.S'
-const string = 'c.S > c.S > 2S hit > 5H > SDisk'
+const string = 'c.S > c.S > 2S hit > 5H > SDisk whiff'
 
 attackString(parseString(string))
 
@@ -81,6 +81,9 @@ function parseString(string) {
     } else if (token.toLowerCase().startsWith('ch') || token.toLowerCase().endsWith('ch')) {
       token = token.replace('ch', '').trim()
       state = 'counterhit'
+    } else if (token.toLowerCase().startsWith('whiff') || token.toLowerCase().endsWith('whiff')) {
+      token = token.replace('whiff', '').trim()
+      state = 'whiff'
     } else {
       state = 'block'
     }
@@ -210,8 +213,8 @@ function advanceAttackerState(attacker, defender) {
       attacker.state = 'attackActive'
       attacker.button = attacker.buttons[0].button.name
 
-      // TODO: make this handle multi-part actives?
-      if (defender.state === 'hitstun' || attacker.buttons[0].state === 'hit') {
+      // TODO: make this handle multi-part actives
+      if ((defender.state === 'hitstun' && attacker.buttons[0].state !== 'whiff') || attacker.buttons[0].state === 'hit') {
         defender.state = 'hitstun'
         defender.remaining = attacker.buttons[0].button.hitstun
       } else if (attacker.buttons[0].state === 'block') {
@@ -219,6 +222,9 @@ function advanceAttackerState(attacker, defender) {
         defender.remaining = attacker.buttons[0].button.blockstun
       } else if (attacker.buttons[0].state === 'counterhit') {
         // TODO: Counterhit
+      } else if (attacker.buttons[0].state === 'whiff') {
+        // whiff! nothing for the defender
+        // but let's remember that this is a valid outcome
       }
 
       attacker.remaining = attacker.buttons[0].button.active - 1
