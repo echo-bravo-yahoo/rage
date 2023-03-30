@@ -92,7 +92,7 @@ function parseString(string) {
 
     return { button, state }
   })
-  console.log(`Tokens: ${tokens.map((token) => token.button.name + ' (' + token.state + ')')}`)
+  console.log(`Tokens: ${tokens.map((token) => ' ' + token.button.name + ' (' + token.state + ')')}`)
   return tokens
 }
 
