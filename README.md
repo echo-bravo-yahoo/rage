@@ -1,6 +1,4 @@
 ### Features I need to scope
-- On-hit timelines
-  - c.S > 2S > 5H hit
 - Human timelines
 - Counterhit timelines
   - (block) c.S > 2S > CH 5H
