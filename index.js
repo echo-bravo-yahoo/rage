@@ -120,8 +120,22 @@ function attackString(buttons) {
   renderSummary(attacker.timeline, defender.timeline)
 }
 
+// remove ending rest frames
+function trimTimeline(timelineIn) {
+  const timeline = [ ...timelineIn ]
+  let lastRest
+
+  while (timeline[timeline.length - 1].state === 'rest') {
+    timeline.pop()
+  }
+
+  return timeline
+}
+
 function renderSummary(attackerTimeline, defenderTimeline) {
-  console.log(`advantage: ${defenderTimeline.length - attackerTimeline.length}`)
+  const advantage = trimTimeline(defenderTimeline).length - trimTimeline(attackerTimeline).length
+  const sign = advantage >= 0 ? '+' : ''
+  console.log(`atk. adv: ${sign}${advantage}`)
 }
 
 function renderAttackerTimeline(timeline) {
