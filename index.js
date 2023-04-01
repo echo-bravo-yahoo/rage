@@ -2,10 +2,16 @@ import { readFile } from 'node:fs/promises'
 import chalk from 'chalk'
 
 const buttons = (JSON.parse(await readFile('./frame-data.json'))).Millia.moves
+
+// disable debug logging
+console.debug = () => {}
+
 // const string = 'c.S > c.S > 2S hit > 5H > SDisk'
 // const string = '2P > 2P > 5H > S Disc hit'
-const string = '2K hit > 6H > hair car > S Disc'
+// const string = '2K hit > 6H > hair car > S Disc'
 // const string = 'c.S > 2S > 5H'
+// const string = 'c.S hit > 6H > hair car'
+const string = 'f.S > S Disc'
 
 const attackLevelData = {
   0: {
@@ -66,9 +72,16 @@ function getHitstun(attack, position = 'stand') {
   }
 }
 
+function getName(buttonObject) {
+  // TODO: aliases go here
+  const name = buttonObject.cmnName || buttonObject.moveName
+  if (!name) throw new Error(`Button ${buttonObject} does not have a cmnName or moveName!`)
+  return name
+}
+
 function sanitizeActive(button) {
   if (button.active === 'UC') {
-    console.log(`Assuming ${button.cmnName} hits on frame 1 (this is highly unlikely!)`)
+    console.log(`Assuming ${getName(button)} hits on frame 1 (this is highly unlikely!)`)
     return 1
   } else {
     return button.active
@@ -82,7 +95,7 @@ function sanitizeRecovery(button) {
       values = values.map((value) => Number(value))
       return values.reduce((prev, cur) => prev + cur, 0)
     } else {
-      throw new Error(`Could not parse recovery value of ${button.recovery} for button ${button.cmnName}`)
+      throw new Error(`Could not parse recovery value of ${button.recovery} for button ${getName(button)}`)
     }
   } else {
     return button.recovery
@@ -113,7 +126,7 @@ function parseString(string) {
 
     return { button, state }
   })
-  console.log(`Tokens: ${tokens.map((token) => ' ' + token.button.cmnName + ' (' + token.state + ')')}`)
+  console.log(`Tokens: ${tokens.map((token) => ' ' + getName(token.button) + ' (' + token.state + ')')}`)
   return tokens
 }
 
@@ -147,7 +160,6 @@ function attackString(buttons) {
 // remove ending rest frames
 function trimTimeline(timelineIn) {
   const timeline = [ ...timelineIn ]
-  let lastRest
 
   while (timeline[timeline.length - 1].state === 'rest') {
     timeline.pop()
@@ -173,7 +185,7 @@ function renderAttackerTimeline(timeline) {
 }
 
 function getButtonFromName(name) {
-  let button = Object.values(buttons.normal).filter((button) => {
+  let matches = Object.values(buttons.normal).filter((button) => {
     if (!button.cmnName) {
       // TODO: alias these?
       // console.log(`Button ${button.moveName} has no cmnName. Using moveName instead.`)
@@ -181,13 +193,19 @@ function getButtonFromName(name) {
     } else {
       return name.toLowerCase() === button.cmnName.toLowerCase()
     }
-  })[0]
+  })
 
-  return button
+  if (matches.length === 0) {
+    throw new Error(`Could not find a match for button with name ${name}!`)
+  } else if (matches.length > 1) {
+    throw new Error(`Found ${matches.length} matches for button with name ${name}!`)
+  }
+
+  return matches[0]
 }
 
 function colorButton(buttonObject) {
-  let ret = buttonObject.cmnName || buttonObject.moveName
+  let ret = getName(buttonObject)
 
   if (buttonObject.numCmd.toUpperCase().includes('P')) {
     ret = chalk.hex('#d96aca')(ret)
@@ -200,7 +218,7 @@ function colorButton(buttonObject) {
   } else if (buttonObject.numCmd.toUpperCase().includes('D')) {
     ret = chalk.hex('#e8982c')(ret)
   } else {
-    console.log(`Did not know how to color button ${buttonObject.cmnName || buttonObject.moveName} with numpad command ${buttonObject.numCmd}!`)
+    console.log(`Did not know how to color button ${getName(buttonObject)} with numpad command ${buttonObject.numCmd}!`)
   }
 
   return ret
@@ -233,7 +251,7 @@ function colorFrame(frame) {
 function renderTimelineOverview(timeline) {
   let firstButton = getButtonFromName(timeline[0].button)
   let string = colorButton(firstButton)
-  let charsToSkip = (firstButton.cmnName || firstButton.moveName).length - 1
+  let charsToSkip = getName(firstButton).length - 1
   for (let i = 1; i < timeline.length; i++) {
     const frame = timeline[i]
     const lastFrame = timeline[i-1]
@@ -273,14 +291,16 @@ function cancelEligible(first, second) {
 function advanceAttackerState(attacker, defender) {
   if (attacker.remaining === 0) {
     if (attacker.state === 'rest') {
-      console.log(`Starting ${attacker.buttons[0].button.cmnName}.`)
+      console.log(`Starting ${getName(attacker.buttons[0].button)}.`)
       attacker.state = 'attackStartup'
-      attacker.button = attacker.buttons[0].button.cmnName
+      attacker.button = getName(attacker.buttons[0].button)
+      console.debug(`startup::startup::before::${attacker.remaining}`)
       attacker.remaining = attacker.buttons[0].button.startup - 2
+      console.debug(`startup::startup::after::${attacker.remaining}`)
     } else if (attacker.state === 'attackStartup') {
-      console.log(`${attacker.buttons[0].button.cmnName} is active.`)
+      console.log(`${getName(attacker.buttons[0].button)} is active.`)
       attacker.state = 'attackActive'
-      attacker.button = attacker.buttons[0].button.cmnName
+      attacker.button = getName(attacker.buttons[0].button)
 
       // TODO: make this handle multi-part actives
       if ((defender.state === 'hitstun' && attacker.buttons[0].state !== 'whiff') || attacker.buttons[0].state === 'hit') {
@@ -296,32 +316,38 @@ function advanceAttackerState(attacker, defender) {
         // but let's remember that this is a valid outcome
       }
 
+      console.debug(`startup::active::before::${attacker.remaining}`)
       attacker.remaining = sanitizeActive(attacker.buttons[0].button) - 1
+      console.debug(`startup::active::after::${attacker.remaining}`)
 
     } else if (attacker.state === 'attackActive') {
       if (attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
-        console.log(`Canceling ${attacker.buttons[0].button.cmnName} into ${attacker.buttons[1].button.cmnName}.`)
+        console.log(`Canceling ${getName(attacker.buttons[0].button)} into ${getName(attacker.buttons[1].button)}.`)
 
         // common
         attacker.state = 'attackStartup'
         attacker.buttons = attacker.buttons.slice(1)
-        attacker.button = attacker.buttons[0].button.cmnName
+        attacker.button = getName(attacker.buttons[0].button)
         attacker.remaining = attacker.buttons[0].button.startup - 1
 
       } else {
-        console.log(`${attacker.buttons[0].button.cmnName} is recovering.`)
+        console.log(`${getName(attacker.buttons[0].button)} is recovering.`)
         attacker.state = 'attackRecovery'
+        console.debug(`startup::recovery::before::${attacker.remaining}`)
         attacker.remaining = sanitizeRecovery(attacker.buttons[0].button) - 2
+        console.debug(`startup::recovery::after::${attacker.remaining}`)
       }
     } else if (attacker.state === 'attackRecovery') {
       if (attacker.buttons.length > 1) {
-        console.log(`Starting ${attacker.buttons[0].button.cmnName}.`)
+        console.log(`Starting ${getName(attacker.buttons[0].button)}.`)
 
         // common
         attacker.state = 'attackStartup'
         attacker.buttons = attacker.buttons.slice(1)
-        attacker.button = attacker.buttons[0].button.cmnName
+        attacker.button = getName(attacker.buttons[0].button)
+        console.debug(`startup::remaining::before::${attacker.remaining}`)
         attacker.remaining = attacker.buttons[0].button.startup - 2
+        console.debug(`startup::remaining::after::${attacker.remaining}`)
 
       } else {
         attacker.buttons = attacker.buttons.slice(1)
@@ -329,13 +355,14 @@ function advanceAttackerState(attacker, defender) {
     }
   } else {
     if (attacker.state === 'attackActive' && attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
-
-        console.log(`Canceling ${attacker.buttons[0].button.cmnName} into ${attacker.buttons[1].button.cmnName}.`)
+      console.log(`Canceling ${getName(attacker.buttons[0].button)} into ${getName(attacker.buttons[1].button)}.`)
       // common
       attacker.state = 'attackStartup'
       attacker.buttons = attacker.buttons.slice(1)
-      attacker.button = attacker.buttons[0].button.cmnName
+      attacker.button = getName(attacker.buttons[0].button)
+      console.debug(`startup::startup::before::${attacker.remaining}`)
       attacker.remaining = attacker.buttons[0].button.startup - 1
+      console.debug(`startup::startup::after::${attacker.remaining}`)
     }
 
     attacker.remaining--
