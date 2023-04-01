@@ -1,72 +1,70 @@
-const buttons = [
-  {
-    name: 'c.S',
-    type: 'normal',
-    level: 3,
-    startup: 7,
-    // active: [3, 3],
-    active: 6,
-    recovery: 13,
-    blockstun: 14,
-    hitstun: 19,
-    cancels: {
-      normals: [ '2S' ],
-      jump: true,
-      special: true,
-      overdrive: true
-    }
-  },
-  {
-    name: '2S',
-    type: 'normal',
-    level: 2,
-    startup: 11,
-    active: 2,
-    recovery: 18,
-    blockstun: 13,
-    hitstun: 16,
-    cancels: {
-      normals: [ '5H' ],
-      jump: false,
-      special: true,
-      overdrive: true
-    }
-  },
-  {
-    name: '5H',
-    type: 'normal',
-    level: 4,
-    startup: 12,
-    active: 4,
-    recovery: 23,
-    blockstun: 15,
-    hitstun: 21,
-    cancels: {
-      normals: [],
-      jump: false,
-      special: true,
-      overdrive: true
-    }
-  },
-  {
-    name: 'SDisk',
-    type: 'special',
-    startup: 12,
-    active: 14,
-    recovery: 45,
-    blockstun: 35,
-    hitstun: 87,
-    cancels: {
-      normals: [],
-      jump: false,
-      special: false,
-      overdrive: true
-    }
-  },
-]
+import { readFile } from 'node:fs/promises'
 
-// const string = 'c.S > c.S'
-const string = 'c.S > c.S > 2S hit > 5H > SDisk whiff'
+const buttons = (JSON.parse(await readFile('./frame-data.json'))).Millia.moves
+// const string = 'c.S > c.S > 2S hit > 5H > SDisk'
+// const string = '2P > 2P > 5H > S Disc hit'
+const string = '2P > 2P > 2P'
+// const string = 'c.S > 2S > 5H'
+
+const attackLevelData = {
+  0: {
+    hitstop: 11,
+    standingHitstun: 12,
+    crouchingHitstun: 13,
+    blockstun: 9,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  1: {
+    hitstop: 12,
+    standingHitstun: 14,
+    crouchingHitstun: 15,
+    blockstun: 11,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  2: {
+    hitstop: 13,
+    standingHitstun: 16,
+    crouchingHitstun: 17,
+    blockstun: 13,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  3: {
+    hitstop: 14,
+    standingHitstun: 19,
+    crouchingHitstun: 20,
+    blockstun: 16,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  },
+  4: {
+    hitstop: 15,
+    standingHitstun: 21,
+    crouchingHitstun: 22,
+    blockstun: 18,
+    airBlockstun: 'L+19',
+    airInstantBlockstun: 'L+5'
+  }
+}
+
+function getBlockstun(attack) {
+  return attackLevelData[attack.attackLevel].blockstun
+}
+// counterhit...
+function getHitstun(attack, position = 'stand') {
+  if (attack.onHit === "KD" || attack.onHit === "HKD") {
+    console.log((attack.active - 1) + attack.recovery + 1)
+    return (attack.active - 1) + attack.recovery + attack.kda
+  }
+
+  if (position === 'crouch') {
+    return attackLevelData[attack.attackLevel].crouchingHitstun
+  } else if (position === 'stand') {
+    return attackLevelData[attack.attackLevel].standingHitstun
+  }
+}
 
 attackString(parseString(string))
 
@@ -88,11 +86,19 @@ function parseString(string) {
       state = 'block'
     }
 
-    let button = buttons.filter((button) => token.toLowerCase() === button.name.toLowerCase())[0]
+    let button = Object.values(buttons.normal).filter((button) => {
+      if (!button.cmnName) {
+        // TODO: alias these
+        // console.log(`Button ${button.moveName} has no cmnName. Using moveName instead.`)
+        return token.toLowerCase() === button.moveName.toLowerCase()
+      } else {
+        return token.toLowerCase() === button.cmnName.toLowerCase()
+      }
+    })[0]
 
     return { button, state }
   })
-  console.log(`Tokens: ${tokens.map((token) => ' ' + token.button.name + ' (' + token.state + ')')}`)
+  console.log(`Tokens: ${tokens.map((token) => ' ' + token.button.cmnName + ' (' + token.state + ')')}`)
   return tokens
 }
 
@@ -194,7 +200,9 @@ function renderDefenderTimeline(timeline) {
 }
 
 function cancelEligible(first, second) {
-  if (first.cancels.normals.includes(second.name) || (first.cancels.special && second.type === 'special')) {
+  const normalCancelEligible = first.gatling && first.gatling.includes(second.cmnName)
+  const specialCancelEligible = first.cancelsTo.includes("sp") && second.moveType === 'special'
+  if (normalCancelEligible || specialCancelEligible) {
     return true
   } else {
     return false
@@ -202,24 +210,25 @@ function cancelEligible(first, second) {
 }
 
 function advanceAttackerState(attacker, defender) {
+  console.log(`attacker: ${attacker.state} for ${attacker.remaining} frames.`)
   if (attacker.remaining === 0) {
     if (attacker.state === 'rest') {
-      console.log(`Starting ${attacker.buttons[0].button.name}.`)
+      console.log(`Starting ${attacker.buttons[0].button.cmnName}.`)
       attacker.state = 'attackStartup'
-      attacker.button = attacker.buttons[0].button.name
-      attacker.remaining = attacker.buttons[0].button.startup - 1
+      attacker.button = attacker.buttons[0].button.cmnName
+      attacker.remaining = attacker.buttons[0].button.startup - 2
     } else if (attacker.state === 'attackStartup') {
-      console.log(`${attacker.buttons[0].button.name} is active.`)
+      console.log(`${attacker.buttons[0].button.cmnName} is active.`)
       attacker.state = 'attackActive'
-      attacker.button = attacker.buttons[0].button.name
+      attacker.button = attacker.buttons[0].button.cmnName
 
       // TODO: make this handle multi-part actives
       if ((defender.state === 'hitstun' && attacker.buttons[0].state !== 'whiff') || attacker.buttons[0].state === 'hit') {
         defender.state = 'hitstun'
-        defender.remaining = attacker.buttons[0].button.hitstun
+        defender.remaining = getHitstun(attacker.buttons[0].button) + 1
       } else if (attacker.buttons[0].state === 'block') {
         defender.state = 'blockstun'
-        defender.remaining = attacker.buttons[0].button.blockstun
+        defender.remaining = getBlockstun(attacker.buttons[0].button) + 1
       } else if (attacker.buttons[0].state === 'counterhit') {
         // TODO: Counterhit
       } else if (attacker.buttons[0].state === 'whiff') {
@@ -230,34 +239,47 @@ function advanceAttackerState(attacker, defender) {
       attacker.remaining = attacker.buttons[0].button.active - 1
     } else if (attacker.state === 'attackActive') {
       if (attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
-        console.log(`Canceling ${attacker.buttons[0].button.name} into ${attacker.buttons[1].button.name}.`)
+        console.log(`Canceling ${attacker.buttons[0].button.cmnName} into ${attacker.buttons[1].button.cmnName}.`)
 
         // common
         attacker.state = 'attackStartup'
         attacker.buttons = attacker.buttons.slice(1)
-        attacker.button = attacker.buttons[0].button.name
+        attacker.button = attacker.buttons[0].button.cmnName
         attacker.remaining = attacker.buttons[0].button.startup - 1
 
       } else {
-        console.log(`${attacker.buttons[0].button.name} is recovering.`)
+        console.log(`${attacker.buttons[0].button.cmnName} is recovering.`)
         attacker.state = 'attackRecovery'
         attacker.remaining = attacker.buttons[0].button.recovery - 2
       }
     } else if (attacker.state === 'attackRecovery') {
       if (attacker.buttons.length > 1) {
-          console.log(`Starting ${attacker.buttons[0].button.name}.`)
+        console.log(`Starting ${attacker.buttons[0].button.cmnName}.`)
 
-          // common
-          attacker.state = 'attackStartup'
-          attacker.button = attacker.buttons[0].button.name
-          attacker.remaining = attacker.buttons[0].button.startup - 1
-        }
-          attacker.buttons = attacker.buttons.slice(1)
+        // common
+        attacker.state = 'attackStartup'
+        attacker.buttons = attacker.buttons.slice(1)
+        attacker.button = attacker.buttons[0].button.cmnName
+        attacker.remaining = attacker.buttons[0].button.startup - 2
+
+      } else {
+        attacker.buttons = attacker.buttons.slice(1)
+      }
     }
   } else {
+    if (attacker.state === 'attackActive' && attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
+
+        console.log(`Canceling ${attacker.buttons[0].button.cmnName} into ${attacker.buttons[1].button.cmnName}.`)
+      // common
+      attacker.state = 'attackStartup'
+      attacker.buttons = attacker.buttons.slice(1)
+      attacker.button = attacker.buttons[0].button.cmnName
+      attacker.remaining = attacker.buttons[0].button.startup - 1
+    }
+
     attacker.remaining--
     if(Number.isNaN(attacker.remaining)) {
-      throw new Error('later!')
+      throw new Error(`Attacker is in state ${attacker.state} with NaN frames remaining.`)
     }
   }
   attacker.timeline.push({ state: attacker.state, button: attacker.button })
@@ -265,6 +287,9 @@ function advanceAttackerState(attacker, defender) {
 }
 
 function advanceDefenderState(defender) {
+  if(Number.isNaN(defender.remaining)) {
+    throw new Error(`Defender is in state ${defender.state} with NaN frames remaining.`)
+  }
   if (defender.remaining === 0) {
     defender.state = 'rest'
   } else {
