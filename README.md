@@ -1,10 +1,13 @@
 ### Features I need to scope
+- Colors
 - Human timelines
+  - OSs?
 - Counterhit timelines
   - (block) c.S > 2S > CH 5H
 - Manual delay cancels
   - c.S > dl 8 > 2S > 5H
   - c.S > delay 8 > 2S > 5H
+- Crouch hit advantage (+1)
 - Mirazh cancels
 - IADs
   - c.S > IAD j.H
@@ -17,3 +20,6 @@
 - Kara cancels
 - Meaty timings
   - meaty c.S > 5D
+- slow RRC frame adv?
+- EddInput in/out
+- RISC CH
