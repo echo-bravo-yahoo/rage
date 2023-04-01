@@ -1,8 +1,13 @@
 ### Features I need to scope
-- Human timelines
-  - OSs?
+- Multi-hit actives (c.S, 6H, Lustshaker)
 - Counterhit timelines
   - (block) c.S > 2S > CH 5H
+- Alias support
+- Counterhit recovery
+- Fix illegally being hit while jailed?
+- Other character support
+- Human timelines
+  - OSs?
 - Manual delay cancels
   - c.S > dl 8 > 2S > 5H
   - c.S > delay 8 > 2S > 5H
