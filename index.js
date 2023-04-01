@@ -151,6 +151,9 @@ function attackString(buttons) {
     advanceDefenderState(defender)
   }
 
+  attacker.timeline = trimTimeline(attacker.timeline)
+  defender.timeline = trimTimeline(defender.timeline)
+
   renderTimelineOverview(attacker.timeline)
   renderAttackerTimeline(attacker.timeline)
   renderDefenderTimeline(defender.timeline)
@@ -169,7 +172,7 @@ function trimTimeline(timelineIn) {
 }
 
 function renderSummary(attackerTimeline, defenderTimeline) {
-  const advantage = trimTimeline(defenderTimeline).length - trimTimeline(attackerTimeline).length
+  const advantage = defenderTimeline.length - attackerTimeline.length
   const sign = advantage >= 0 ? '+' : ''
   const color = advantage >= 0 ? '#36B37E' : '#FF5D5D'
   console.log(`atk. adv: ${chalk.hex(color)(sign + advantage)}`)
