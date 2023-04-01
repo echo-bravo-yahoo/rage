@@ -59,8 +59,10 @@ const attackLevelData = {
 function getBlockstun(attack) {
   return attackLevelData[attack.attackLevel].blockstun
 }
-// counterhit...
+
 function getHitstun(attack, position = 'stand') {
+  // TODO: counterhit...
+
   if (attack.onHit === "KD" || attack.onHit === "HKD") {
     return (sanitizeActive(attack) - 1) + sanitizeRecovery(attack) + attack.kda
   }
@@ -126,7 +128,7 @@ function parseString(string) {
 
     return { button, state }
   })
-  console.log(`Tokens: ${tokens.map((token) => ' ' + getName(token.button) + ' (' + token.state + ')')}`)
+  console.log(`Tokens: ${tokens.map((token) => ' ' + colorButton(token.button) + ' (' + token.state + ')')}`)
   return tokens
 }
 
@@ -227,27 +229,41 @@ function colorButton(buttonObject) {
   return ret
 }
 
-function colorFrame(frame) {
+function colorByState(state, text) {
   let ret = ''
 
-  if (frame.state === 'attackStartup') {
-    ret += chalk.hex('#36B37E')('s')
-  } else if (frame.state === 'attackActive') {
-    ret += chalk.hex('#FF5D5D')('a')
-  } else if (frame.state === 'attackRecovery') {
-    ret += chalk.hex('#0069B6')('r')
+  if (state === 'attackStartup') {
+    ret += chalk.hex('#36B37E')(text)
+  } else if (state === 'attackActive') {
+    ret += chalk.hex('#FF5D5D')(text)
+  } else if (state === 'attackRecovery') {
+    ret += chalk.hex('#0069B6')(text)
     // TODO: Special recovery frames (#db69cf)
-  } else if (frame.state === 'rest') {
+  } else if (state === 'rest') {
     ret += ' '
-  } else if (frame.state === 'blockstun') {
-    ret += chalk.hex('#0069B6')('s')
-  } else if (frame.state === 'hitstun') {
-    ret += chalk.hex('#FF5D5D')('h')
-  } else if (frame.state === 'rest') {
-    ret += ' '
+  } else if (state === 'blockstun') {
+    ret += chalk.hex('#0069B6')(text)
+  } else if (state === 'hitstun') {
+    ret += chalk.hex('#FF5D5D')(text)
+  } else if (state === 'rest') {
+    ret += text
   }
 
   return ret
+}
+
+function colorFrame(frame) {
+  let ret = ''
+  const stateSymbols = {
+    attackActive: 'a',
+    attackStartup: 's',
+    attackRecovery: 'r',
+    rest: ' ',
+    blockstun: 's',
+    hitstun: 'h'
+  }
+
+  return colorByState(frame.state, stateSymbols[frame.state])
 }
 
 // takes an attacker timeline
@@ -294,14 +310,14 @@ function cancelEligible(first, second) {
 function advanceAttackerState(attacker, defender) {
   if (attacker.remaining === 0) {
     if (attacker.state === 'rest') {
-      console.log(`Starting ${getName(attacker.buttons[0].button)}.`)
+      console.log(`Starting ${colorButton(attacker.buttons[0].button)}.`)
       attacker.state = 'attackStartup'
       attacker.button = getName(attacker.buttons[0].button)
       console.debug(`startup::startup::before::${attacker.remaining}`)
       attacker.remaining = attacker.buttons[0].button.startup - 2
       console.debug(`startup::startup::after::${attacker.remaining}`)
     } else if (attacker.state === 'attackStartup') {
-      console.log(`${getName(attacker.buttons[0].button)} is active.`)
+      console.log(`${colorButton(attacker.buttons[0].button)} is active.`)
       attacker.state = 'attackActive'
       attacker.button = getName(attacker.buttons[0].button)
 
@@ -325,7 +341,7 @@ function advanceAttackerState(attacker, defender) {
 
     } else if (attacker.state === 'attackActive') {
       if (attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
-        console.log(`Canceling ${getName(attacker.buttons[0].button)} into ${getName(attacker.buttons[1].button)}.`)
+        console.log(`Canceling ${colorButton(attacker.buttons[0].button)} into ${colorButton(attacker.buttons[1].button)}.`)
 
         // common
         attacker.state = 'attackStartup'
@@ -334,7 +350,7 @@ function advanceAttackerState(attacker, defender) {
         attacker.remaining = attacker.buttons[0].button.startup - 1
 
       } else {
-        console.log(`${getName(attacker.buttons[0].button)} is recovering.`)
+        console.log(`${colorButton(attacker.buttons[0].button)} is recovering.`)
         attacker.state = 'attackRecovery'
         console.debug(`startup::recovery::before::${attacker.remaining}`)
         attacker.remaining = sanitizeRecovery(attacker.buttons[0].button) - 2
@@ -342,7 +358,7 @@ function advanceAttackerState(attacker, defender) {
       }
     } else if (attacker.state === 'attackRecovery') {
       if (attacker.buttons.length > 1) {
-        console.log(`Starting ${getName(attacker.buttons[0].button)}.`)
+        console.log(`Starting ${colorButton(attacker.buttons[0].button)}.`)
 
         // common
         attacker.state = 'attackStartup'
@@ -358,7 +374,7 @@ function advanceAttackerState(attacker, defender) {
     }
   } else {
     if (attacker.state === 'attackActive' && attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
-      console.log(`Canceling ${getName(attacker.buttons[0].button)} into ${getName(attacker.buttons[1].button)}.`)
+      console.log(`Canceling ${colorButton(attacker.buttons[0].button)} into ${colorButton(attacker.buttons[1].button)}.`)
       // common
       attacker.state = 'attackStartup'
       attacker.buttons = attacker.buttons.slice(1)
