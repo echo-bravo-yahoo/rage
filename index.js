@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises'
+import chalk from 'chalk'
 
 const buttons = (JSON.parse(await readFile('./frame-data.json'))).Millia.moves
 // const string = 'c.S > c.S > 2S hit > 5H > SDisk'
 // const string = '2P > 2P > 5H > S Disc hit'
-const string = '2P > 2P > 2P'
+const string = '2K hit > 6H > hair car > S Disc'
 // const string = 'c.S > 2S > 5H'
 
 const attackLevelData = {
@@ -55,14 +56,36 @@ function getBlockstun(attack) {
 // counterhit...
 function getHitstun(attack, position = 'stand') {
   if (attack.onHit === "KD" || attack.onHit === "HKD") {
-    console.log((attack.active - 1) + attack.recovery + 1)
-    return (attack.active - 1) + attack.recovery + attack.kda
+    return (sanitizeActive(attack) - 1) + sanitizeRecovery(attack) + attack.kda
   }
 
   if (position === 'crouch') {
     return attackLevelData[attack.attackLevel].crouchingHitstun
   } else if (position === 'stand') {
     return attackLevelData[attack.attackLevel].standingHitstun
+  }
+}
+
+function sanitizeActive(button) {
+  if (button.active === 'UC') {
+    console.log(`Assuming ${button.cmnName} hits on frame 1 (this is highly unlikely!)`)
+    return 1
+  } else {
+    return button.active
+  }
+}
+
+function sanitizeRecovery(button) {
+  if (typeof button.recovery === 'string') {
+    if (button.recovery.match(/\d+(\+\d+)+/).length) {
+      let values = button.recovery.split('+')
+      values = values.map((value) => Number(value))
+      return values.reduce((prev, cur) => prev + cur, 0)
+    } else {
+      throw new Error(`Could not parse recovery value of ${button.recovery} for button ${button.cmnName}`)
+    }
+  } else {
+    return button.recovery
   }
 }
 
@@ -86,15 +109,7 @@ function parseString(string) {
       state = 'block'
     }
 
-    let button = Object.values(buttons.normal).filter((button) => {
-      if (!button.cmnName) {
-        // TODO: alias these
-        // console.log(`Button ${button.moveName} has no cmnName. Using moveName instead.`)
-        return token.toLowerCase() === button.moveName.toLowerCase()
-      } else {
-        return token.toLowerCase() === button.cmnName.toLowerCase()
-      }
-    })[0]
+    const button = getButtonFromName(token.toLowerCase())
 
     return { button, state }
   })
@@ -144,30 +159,81 @@ function trimTimeline(timelineIn) {
 function renderSummary(attackerTimeline, defenderTimeline) {
   const advantage = trimTimeline(defenderTimeline).length - trimTimeline(attackerTimeline).length
   const sign = advantage >= 0 ? '+' : ''
-  console.log(`atk. adv: ${sign}${advantage}`)
+  const color = advantage >= 0 ? '#36B37E' : '#FF5D5D'
+  console.log(`atk. adv: ${chalk.hex(color)(sign + advantage)}`)
 }
 
 function renderAttackerTimeline(timeline) {
   let string = ''
   for (let i = 0; i < timeline.length; i++) {
     const frame = timeline[i]
-    if (frame.state === 'attackStartup') {
-      string += 's'
-    } else if (frame.state === 'attackActive') {
-      string += 'a'
-    } else if (frame.state === 'attackRecovery') {
-      string += 'r'
-    } else if (frame.state === 'rest') {
-      string += ' '
-    }
+    string += colorFrame(frame)
   }
   console.log('attacker: ' + string)
 }
 
+function getButtonFromName(name) {
+  let button = Object.values(buttons.normal).filter((button) => {
+    if (!button.cmnName) {
+      // TODO: alias these?
+      // console.log(`Button ${button.moveName} has no cmnName. Using moveName instead.`)
+      return name.toLowerCase() === button.moveName.toLowerCase()
+    } else {
+      return name.toLowerCase() === button.cmnName.toLowerCase()
+    }
+  })[0]
+
+  return button
+}
+
+function colorButton(buttonObject) {
+  let ret = buttonObject.cmnName || buttonObject.moveName
+
+  if (buttonObject.numCmd.toUpperCase().includes('P')) {
+    ret = chalk.hex('#d96aca')(ret)
+  } else if (buttonObject.numCmd.toUpperCase().includes('K')) {
+    ret = chalk.hex('#1f8ccc')(ret)
+  } else if (buttonObject.numCmd.toUpperCase().includes('S')) {
+    ret = chalk.hex('#009e4e')(ret)
+  } else if (buttonObject.numCmd.toUpperCase().includes('H')) {
+    ret = chalk.hex('#de1616')(ret)
+  } else if (buttonObject.numCmd.toUpperCase().includes('D')) {
+    ret = chalk.hex('#e8982c')(ret)
+  } else {
+    console.log(`Did not know how to color button ${buttonObject.cmnName || buttonObject.moveName} with numpad command ${buttonObject.numCmd}!`)
+  }
+
+  return ret
+}
+
+function colorFrame(frame) {
+  let ret = ''
+
+  if (frame.state === 'attackStartup') {
+    ret += chalk.hex('#36B37E')('s')
+  } else if (frame.state === 'attackActive') {
+    ret += chalk.hex('#FF5D5D')('a')
+  } else if (frame.state === 'attackRecovery') {
+    ret += chalk.hex('#0069B6')('r')
+    // TODO: Special recovery frames (#db69cf)
+  } else if (frame.state === 'rest') {
+    ret += ' '
+  } else if (frame.state === 'blockstun') {
+    ret += chalk.hex('#0069B6')('s')
+  } else if (frame.state === 'hitstun') {
+    ret += chalk.hex('#FF5D5D')('h')
+  } else if (frame.state === 'rest') {
+    ret += ' '
+  }
+
+  return ret
+}
+
 // takes an attacker timeline
 function renderTimelineOverview(timeline) {
-  let string = timeline[0].button
-  let charsToSkip = string.length - 1
+  let firstButton = getButtonFromName(timeline[0].button)
+  let string = colorButton(firstButton)
+  let charsToSkip = (firstButton.cmnName || firstButton.moveName).length - 1
   for (let i = 1; i < timeline.length; i++) {
     const frame = timeline[i]
     const lastFrame = timeline[i-1]
@@ -175,8 +241,9 @@ function renderTimelineOverview(timeline) {
       // skip processing this character
       charsToSkip--
     } else if (frame.state === 'attackStartup' && frame.state !== lastFrame.state) {
-      string += frame.button
-      charsToSkip = frame.button.length - 1
+      const buttonObject = getButtonFromName(frame.button)
+      string += colorButton(buttonObject)
+      charsToSkip = (buttonObject.cmnName || buttonObject.moveName).length - 1
     } else {
       string += ' '
     }
@@ -188,20 +255,14 @@ function renderDefenderTimeline(timeline) {
   let string = ''
   for (let i = 0; i < timeline.length; i++) {
     const frame = timeline[i]
-    if (frame.state === 'blockstun') {
-      string += 's'
-    } else if (frame.state === 'hitstun') {
-      string += 'h'
-    } else if (frame.state === 'rest') {
-      string += ' '
-    }
+    string += colorFrame(frame)
   }
   console.log('defender: ' + string)
 }
 
 function cancelEligible(first, second) {
   const normalCancelEligible = first.gatling && first.gatling.includes(second.cmnName)
-  const specialCancelEligible = first.cancelsTo.includes("sp") && second.moveType === 'special'
+  const specialCancelEligible = first.cancelsTo && first.cancelsTo.includes("sp") && second.moveType === 'special'
   if (normalCancelEligible || specialCancelEligible) {
     return true
   } else {
@@ -210,7 +271,6 @@ function cancelEligible(first, second) {
 }
 
 function advanceAttackerState(attacker, defender) {
-  console.log(`attacker: ${attacker.state} for ${attacker.remaining} frames.`)
   if (attacker.remaining === 0) {
     if (attacker.state === 'rest') {
       console.log(`Starting ${attacker.buttons[0].button.cmnName}.`)
@@ -236,7 +296,8 @@ function advanceAttackerState(attacker, defender) {
         // but let's remember that this is a valid outcome
       }
 
-      attacker.remaining = attacker.buttons[0].button.active - 1
+      attacker.remaining = sanitizeActive(attacker.buttons[0].button) - 1
+
     } else if (attacker.state === 'attackActive') {
       if (attacker.buttons.length > 1 && cancelEligible(attacker.buttons[0].button, attacker.buttons[1].button)) {
         console.log(`Canceling ${attacker.buttons[0].button.cmnName} into ${attacker.buttons[1].button.cmnName}.`)
@@ -250,7 +311,7 @@ function advanceAttackerState(attacker, defender) {
       } else {
         console.log(`${attacker.buttons[0].button.cmnName} is recovering.`)
         attacker.state = 'attackRecovery'
-        attacker.remaining = attacker.buttons[0].button.recovery - 2
+        attacker.remaining = sanitizeRecovery(attacker.buttons[0].button) - 2
       }
     } else if (attacker.state === 'attackRecovery') {
       if (attacker.buttons.length > 1) {

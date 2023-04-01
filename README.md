@@ -1,5 +1,4 @@
 ### Features I need to scope
-- Colors
 - Human timelines
   - OSs?
 - Counterhit timelines
